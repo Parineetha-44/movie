@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MoodforMovies — find what fits your mood</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   TOKENS
+   ========================================================= */
+:root{
+  --bg: #0b0a0d;
+  --bg-2: #131015;
+  --surface: #17141a;
+  --surface-2: #1f1a22;
+  --surface-border: #2b2530;
+  --text: #f2ede6;
+  --text-dim: #a89fae;
+  --text-faint: #6f6675;
+
+  --accent: #e8a33d;        /* marquee gold */
+  --accent-soft: #e8a33d22;
+  --accent-2: #b8412f;      /* marquee red — ticket stub / secondary */
+  --accent-2-soft: #b8412f22;
+
+  --best: #4fae72;
+  --best-soft: #4fae7220;
+  --good: #e0a63e;
+  --good-soft: #e0a63e20;
+  --worst: #d05a52;
+  --worst-soft: #d05a5220;
+
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 22px;
+
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --shadow-card: 0 10px 30px -12px rgba(0,0,0,.6);
+  --ease: cubic-bezier(.22,.61,.36,1);
+}
+
+*{ box-sizing: border-box; margin:0; padding:0; }
+html,body{ height:100%; }
+body{
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* subtle film-grain / vignette atmosphere */
+body::before{
+  content:"";
+  position: fixed; inset:0;
+  pointer-events:none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse at 20% -10%, rgba(232,163,61,.08), transparent 45%),
+    radial-gradient(ellipse at 100% 110%, rgba(184,65,47,.10), transparent 45%);
+}
+body::after{
+  content:"";
+  position: fixed; inset:0;
+  pointer-events:none;
+  z-index: 1;
+  opacity:.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+a{ color:inherit; text-decoration:none; }
+button{ font-family: inherit; cursor:pointer; border:none; background:none; color:inherit; }
+input, textarea{ font-family: inherit; }
+::selection{ background: var(--accent); color:#1a1207; }
+
+.hidden{ display:none !important; }
+
+/* =========================================================
+   SHARED BITS
+   ========================================================= */
+.eyebrow{
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding: 13px 26px;
+  border-radius: 999px;
+  font-weight:700;
+  font-size:14.5px;
+  letter-spacing:.01em;
+  transition: transform .18s var(--ease), box-shadow .18s var(--ease), background .18s var(--ease);
+}
+.btn-primary{
+  background: linear-gradient(180deg, #f0b355, var(--accent));
+  color: #1c1206;
+  box-shadow: 0 8px 20px -8px rgba(232,163,61,.55);
+}
+.btn-primary:hover{ transform: translateY(-2px); box-shadow: 0 12px 26px -8px rgba(232,163,61,.7); }
+.btn-ghost{
+  background: var(--surface-2);
+  border: 1px solid var(--surface-border);
+  color: var(--text);
+}
+.btn-ghost:hover{ border-color: var(--accent); color: var(--accent); }
+.btn-block{ width:100%; }
+.btn-sm{ padding: 8px 16px; font-size: 13px; }
+
+.film-perf{
+  height: 10px;
+  background-image: radial-gradient(circle, var(--bg) 3px, transparent 3.5px);
+  background-size: 18px 10px;
+  background-position: center;
+  background-repeat: repeat-x;
+  background-color: var(--surface-border);
+  opacity:.5;
+}
+
+/* =========================================================
+   TOP-LEVEL LAYOUT
+   ========================================================= */
+#app{ position: relative; z-index: 2; min-height: 100vh; }
+
+/* =========================================================
+   1. AUTH / LANDING SCREEN
+   ========================================================= */
+#screen-auth{
+  min-height: 100vh;
+  display:grid;
+  grid-template-columns: 1.15fr 1fr;
+}
+@media (max-width: 880px){
+  #screen-auth{ grid-template-columns: 1fr; }
+  #auth-visual{ display:none; }
+}
+
+#auth-visual{
+  position: relative;
+  padding: 56px;
+  display:flex; flex-direction:column; justify-content:space-between;
+  background:
+    linear-gradient(180deg, rgba(11,10,13,.35), rgba(11,10,13,.92)),
+    repeating-linear-gradient(115deg, #241a22 0px, #241a22 2px, #17121a 2px, #17121a 140px);
+  border-right: 1px solid var(--surface-border);
+  overflow:hidden;
+}
+#auth-visual .poster-stack{
+  position:absolute; inset:0;
+  display:grid; grid-template-columns: repeat(4,1fr); gap:14px;
+  padding: 90px 40px 40px;
+  transform: rotate(-4deg) scale(1.2);
+  opacity:.5;
+}
+#auth-visual .poster-stack div{
+  border-radius: 10px;
+  aspect-ratio: 2/3;
+}
+#auth-visual .brand{ position:relative; font-family: var(--font-display); font-size: 34px; letter-spacing: .04em; }
+#auth-visual .brand span{ color: var(--accent); }
+#auth-visual .tag{ position:relative; max-width: 380px; color: var(--text-dim); font-size: 15px; line-height:1.6; margin-top:14px;}
+#auth-visual .quote{
+  position:relative;
+  font-family: var(--font-display);
+  font-size: clamp(30px, 3.4vw, 46px);
+  line-height: 1.05;
+  letter-spacing: .01em;
+  max-width: 480px;
+}
+#auth-visual .quote em{ color: var(--accent); font-style: normal; }
+
+#auth-panel{
+  display:flex; align-items:center; justify-content:center;
+  padding: 40px 28px;
+}
+.auth-card{ width:100%; max-width: 380px; }
+.auth-card .brand-mobile{
+  display:none;
+  font-family: var(--font-display); font-size: 26px; margin-bottom: 22px;
+}
+@media (max-width: 880px){ .auth-card .brand-mobile{ display:block; } }
+
+.auth-card h1{
+  font-family: var(--font-display);
+  font-size: 38px;
+  letter-spacing: .01em;
+  margin-bottom: 6px;
+}
+.auth-card p.sub{ color: var(--text-dim); font-size: 14px; margin-bottom: 28px; }
+
+.field{ margin-bottom: 14px; }
+.field label{ display:block; font-size: 12.5px; color: var(--text-dim); margin-bottom: 6px; font-weight:600;}
+.field input{
+  width:100%;
+  padding: 13px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--surface-border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14.5px;
+  outline: none;
+  transition: border-color .15s var(--ease), background .15s var(--ease);
+}
+.field input:focus{ border-color: var(--accent); background: var(--surface-2); }
+.field input::placeholder{ color: var(--text-faint); }
+
+.auth-actions{ margin-top: 22px; display:flex; flex-direction:column; gap:12px;}
+.auth-switch{ margin-top: 22px; text-align:center; font-size: 13.5px; color: var(--text-dim); }
+.auth-switch button{ color: var(--accent); font-weight:700; }
+.auth-divider{ display:flex; align-items:center; gap:10px; margin: 18px 0; color: var(--text-faint); font-size:12px;}
+.auth-divider::before, .auth-divider::after{ content:""; flex:1; height:1px; background: var(--surface-border); }
+.auth-guest{ text-align:center; font-size: 13px; color: var(--text-faint); margin-top: 16px;}
+.auth-guest a{ color: var(--text-dim); text-decoration: underline; text-underline-offset:3px; }
+
+/* =========================================================
+   APP SHELL (post-login)
+   ========================================================= */
+#app-shell{ min-height: 100vh; padding-bottom: 90px; }
+
+/* --- Nav --- */
+#topnav{
+  position: sticky; top:0; z-index: 40;
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 16px 32px;
+  background: rgba(11,10,13,.78);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--surface-border);
+}
+#topnav .brand{ font-family: var(--font-display); font-size: 22px; letter-spacing:.03em; display:flex; align-items:center; gap:8px;}
+#topnav .brand span{ color: var(--accent); }
+#topnav .brand .dot{ width:7px; height:7px; border-radius:50%; background: var(--accent-2); box-shadow: 0 0 10px var(--accent-2); }
+
+#topnav nav{ display:flex; gap: 6px; background: var(--surface); border:1px solid var(--surface-border); padding:5px; border-radius: 999px;}
+#topnav nav button{
+  padding: 9px 18px; border-radius: 999px; font-size: 13.5px; font-weight:600; color: var(--text-dim);
+  display:flex; align-items:center; gap:7px;
+  transition: all .18s var(--ease);
+}
+#topnav nav button svg{ width:15px; height:15px; }
+#topnav nav button.active{ background: var(--accent); color:#1c1206; }
+#topnav nav button:not(.active):hover{ color: var(--text); }
+
+#topnav .user-chip{ display:flex; align-items:center; gap:10px; font-size:13px; color:var(--text-dim);}
+#topnav .avatar{
+  width:34px; height:34px; border-radius:50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display:flex; align-items:center; justify-content:center;
+  font-family: var(--font-display); font-size:15px; color:#1c1206;
+}
+
+/* --- Bottom nav (mobile) --- */
+#bottomnav{
+  display:none;
+  position: fixed; bottom:0; left:0; right:0; z-index:40;
+  background: rgba(17,14,20,.94);
+  backdrop-filter: blur(14px);
+  border-top: 1px solid var(--surface-border);
+  padding: 8px 10px 14px;
+  justify-content: space-around;
+}
+#bottomnav button{
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  font-size: 10.5px; color: var(--text-faint); font-weight:600;
+  padding: 6px 10px; border-radius: 12px;
+}
+#bottomnav button svg{ width:20px; height:20px; }
+#bottomnav button.active{ color: var(--accent); }
+@media (max-width: 760px){
+  #topnav nav{ display:none; }
+  #bottomnav{ display:flex; }
+}
+
+main.screen{ max-width: 1180px; margin: 0 auto; padding: 44px 32px 60px; }
+@media (max-width: 600px){ main.screen{ padding: 28px 18px 40px; } }
+
+/* =========================================================
+   HOME SCREEN
+   ========================================================= */
+.home-hero{
+  border-radius: var(--radius-lg);
+  padding: 46px 40px;
+  position: relative;
+  overflow:hidden;
+  background:
+    linear-gradient(120deg, rgba(232,163,61,.14), rgba(184,65,47,.10)),
+    var(--surface);
+  border: 1px solid var(--surface-border);
+  margin-bottom: 40px;
+}
+.home-hero::after{
+  content:"🎞";
+  position:absolute; right: 34px; top: 50%; transform: translateY(-50%) rotate(8deg);
+  font-size: 130px; opacity:.06; filter: grayscale(1);
+}
+.home-hero h1{ font-family: var(--font-display); font-size: clamp(30px,4vw,44px); line-height:1.08; max-width: 640px; }
+.home-hero h1 em{ color: var(--accent); font-style:normal; }
+.home-hero p{ color: var(--text-dim); margin-top: 12px; max-width: 480px; font-size: 15px; }
+.home-hero .cta-row{ margin-top: 26px; display:flex; gap:12px; flex-wrap:wrap; position:relative; }
+
+.mood-chip-row{ display:flex; flex-wrap:wrap; gap:9px; margin-top: 22px; position:relative; }
+.mood-chip{
+  padding: 8px 15px; border-radius: 999px; font-size: 13px;
+  background: var(--surface-2); border:1px solid var(--surface-border); color: var(--text-dim);
+  transition: all .16s var(--ease);
+}
+.mood-chip:hover{ border-color: var(--accent); color: var(--accent); }
+
+.section-head{ display:flex; align-items:baseline; justify-content:space-between; margin: 40px 0 18px; }
+.section-head h2{ font-family: var(--font-display); font-size: 24px; letter-spacing:.01em; }
+.section-head a.see-all{ font-size: 13px; color: var(--accent); font-weight:700; }
+
+.watchlist-strip{ display:flex; gap:16px; overflow-x:auto; padding-bottom: 8px; }
+.watchlist-strip::-webkit-scrollbar{ height:6px; }
+.watchlist-strip::-webkit-scrollbar-thumb{ background: var(--surface-border); border-radius:3px; }
+.mini-card{
+  min-width: 150px; max-width:150px;
+  background: var(--surface); border:1px solid var(--surface-border); border-radius: var(--radius);
+  overflow:hidden; cursor:pointer;
+  transition: transform .18s var(--ease), border-color .18s var(--ease);
+}
+.mini-card:hover{ transform: translateY(-4px); border-color: var(--accent); }
+.mini-card .poster-ph{ aspect-ratio: 2/3; }
+.mini-card .mini-info{ padding: 9px 10px; }
+.mini-card .mini-info h4{ font-size: 12.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mini-card .mini-info span{ font-size: 11px; color: var(--text-faint); }
+
+.empty-state{
+  border: 1px dashed var(--surface-border); border-radius: var(--radius);
+  padding: 30px; text-align:center; color: var(--text-faint); font-size: 13.5px;
+}
+
+/* =========================================================
+   POSTER PLACEHOLDER (used everywhere)
+   ========================================================= */
+.poster-ph{
+  position: relative;
+  border-radius: inherit;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
+}
+.poster-ph::before{
+  content:"";
+  position:absolute; inset:0;
+  background-image: repeating-linear-gradient(115deg, rgba(255,255,255,.05) 0px, rgba(255,255,255,.05) 1px, transparent 1px, transparent 26px);
+}
+.poster-ph .ph-glyph{
+  font-family: var(--font-display);
+  font-size: 15%;
+  color: rgba(255,255,255,.5);
+  letter-spacing: .04em;
+  z-index:1;
+  text-align:center;
+  padding: 0 10%;
+  line-height:1.1;
+}
+.poster-ph .ph-icon{ position:absolute; bottom:10px; right:10px; opacity:.55; width:22px; height:22px; z-index:1;}
+
+/* =========================================================
+   2. MOOD SEARCH SCREEN
+   ========================================================= */
+.mood-wrap{ max-width: 760px; margin: 0 auto; text-align:center; padding-top: 10px;}
+.mood-wrap .eyebrow{ display:block; margin-bottom: 10px; }
+.mood-wrap h1{ font-family: var(--font-display); font-size: clamp(30px,4.4vw,48px); margin-bottom: 10px; }
+.mood-wrap p.lead{ color: var(--text-dim); font-size: 15px; margin-bottom: 30px; }
+
+.mood-box-wrap{ position: relative; text-align:left; }
+#mood-input{
+  width:100%;
+  min-height: 150px;
+  resize: vertical;
+  padding: 22px 24px;
+  font-size: 17px;
+  line-height:1.5;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--surface-border);
+  background: var(--surface);
+  color: var(--text);
+  outline:none;
+  transition: border-color .18s var(--ease), box-shadow .18s var(--ease);
+  font-family: var(--font-body);
+}
+#mood-input::placeholder{ color: var(--text-faint); }
+#mood-input:focus{ border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.mood-box-wrap .char-hint{
+  position:absolute; right:16px; bottom:14px; font-size:11px; color: var(--text-faint); font-family: var(--font-mono);
+}
+
+.filters-block{ margin-top: 26px; text-align:left; }
+.filters-block .filters-label{ font-size:12px; text-transform:uppercase; letter-spacing:.12em; color: var(--text-faint); font-weight:700; margin-bottom:10px;}
+.filter-group{ display:flex; flex-wrap:wrap; gap:9px; margin-bottom: 16px; }
+.chip{
+  padding: 9px 16px; border-radius:999px; font-size:13px; font-weight:600;
+  background: var(--surface); border:1px solid var(--surface-border); color: var(--text-dim);
+  transition: all .16s var(--ease);
+}
+.chip:hover{ border-color: var(--accent); }
+.chip.on{ background: var(--accent); border-color: var(--accent); color:#1c1206; }
+.chip.on.rating-low{ background:#7fb08a; border-color:#7fb08a; }
+.chip.on.rating-med{ background: var(--good); border-color: var(--good); }
+.chip.on.rating-high{ background: var(--best); border-color: var(--best); }
+
+.mood-submit-row{ margin-top: 30px; display:flex; justify-content:center; }
+
+.mood-examples{ margin-top: 34px; }
+.mood-examples .filters-label{ font-size:12px; text-transform:uppercase; letter-spacing:.12em; color: var(--text-faint); font-weight:700; margin-bottom:10px;}
+.example-pill{
+  display:inline-block; margin: 0 8px 8px 0; padding: 9px 15px; font-size: 12.5px;
+  border-radius: 999px; background: var(--surface-2); border:1px dashed var(--surface-border); color: var(--text-dim);
+}
+.example-pill:hover{ border-color: var(--accent); color: var(--accent); border-style: solid; }
+
+/* =========================================================
+   3. RESULTS SCREEN
+   ========================================================= */
+.results-head{ display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:14px; margin-bottom: 28px; }
+.results-head h1{ font-family: var(--font-display); font-size: 30px; }
+.results-head .mood-echo{ color: var(--text-dim); font-size: 13.5px; margin-top:6px; max-width: 560px; }
+.results-head .mood-echo strong{ color: var(--accent); font-weight:600; }
+.results-head button.edit-search{ font-size:13px; font-weight:700; color: var(--accent); border:1px solid var(--accent-soft); padding:9px 16px; border-radius:999px; background: var(--accent-soft); }
+
+.grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 22px;
+}
+
+.movie-card{
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor:pointer;
+  transition: transform .22s var(--ease), box-shadow .22s var(--ease), border-color .22s var(--ease);
+  display:flex; flex-direction:column;
+}
+.movie-card:hover{ transform: translateY(-6px); box-shadow: var(--shadow-card); border-color: var(--surface-border); }
+.movie-card:hover .poster-ph .ph-icon{ opacity:1; }
+.movie-card .poster-ph{ aspect-ratio: 2/3; border-radius: 0; }
+.movie-card .poster-ph .ph-glyph{ font-size: 14%; }
+
+.match-badge{
+  position:absolute; top:10px; left:10px; z-index:2;
+  font-size: 11px; font-weight:800; letter-spacing:.03em;
+  padding: 5px 11px; border-radius: 999px;
+  text-transform: uppercase;
+  backdrop-filter: blur(4px);
+}
+.match-badge.best{ background: var(--best-soft); color: var(--best); border:1px solid var(--best); }
+.match-badge.good{ background: var(--good-soft); color: var(--good); border:1px solid var(--good); }
+.match-badge.worst{ background: var(--worst-soft); color: var(--worst); border:1px solid var(--worst); }
+
+.imdb-badge{
+  position:absolute; top:10px; right:10px; z-index:2;
+  font-size: 11px; font-weight:800; font-family: var(--font-mono);
+  padding: 5px 9px; border-radius: 6px;
+  background: rgba(0,0,0,.55); color: #f5c518; border: 1px solid rgba(245,197,24,.4);
+}
+
+.card-body{ padding: 14px 15px 16px; display:flex; flex-direction:column; gap:8px; flex:1; }
+.card-body .title-row{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.card-body h3{ font-size: 15.5px; font-weight:700; line-height:1.25; }
+.card-body .year{ font-size: 12px; color: var(--text-faint); white-space:nowrap; font-family: var(--font-mono); }
+.card-body .teaser{ font-size: 12.5px; color: var(--text-dim); line-height:1.5; min-height: 38px; }
+.tag-row{ display:flex; flex-wrap:wrap; gap:6px; }
+.tag{ font-size: 10.5px; padding: 3px 9px; border-radius:999px; background: var(--surface-2); color: var(--text-dim); border:1px solid var(--surface-border);}
+.platform-row{ display:flex; gap:6px; margin-top:auto; padding-top:6px; }
+.platform-badge{
+  font-size: 10px; font-weight:700; padding: 4px 8px; border-radius: 5px; letter-spacing:.02em;
+}
+.pf-netflix{ background:#2b0c0f; color:#e5504f; border:1px solid #5c1a1a;}
+.pf-prime{ background:#0e2233; color:#5ac8fa; border:1px solid #1a3c52;}
+.pf-hotstar{ background:#1a1030; color:#a389ff; border:1px solid #33235c;}
+.pf-max{ background:#1a0e33; color:#8b5cf6; border:1px solid #33205c;}
+.pf-apple{ background:#161616; color:#e8e8e8; border:1px solid #3a3a3a;}
+
+.results-empty{ text-align:center; padding: 70px 20px; color: var(--text-faint); }
+.results-empty h3{ font-family: var(--font-display); font-size:22px; color:var(--text-dim); margin-bottom:8px;}
+
+/* =========================================================
+   4. DETAIL MODAL
+   ========================================================= */
+#modal-backdrop{
+  position: fixed; inset:0; z-index: 100;
+  background: rgba(6,5,7,.72);
+  backdrop-filter: blur(6px);
+  display:flex; align-items:center; justify-content:center;
+  padding: 24px;
+  opacity:0; pointer-events:none;
+  transition: opacity .22s var(--ease);
+}
+#modal-backdrop.open{ opacity:1; pointer-events:auto; }
+
+.modal-card{
+  width:100%; max-width: 860px; max-height: 88vh; overflow-y:auto;
+  background: var(--bg-2);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  display:grid; grid-template-columns: 300px 1fr;
+  transform: translateY(16px) scale(.98);
+  transition: transform .22s var(--ease);
+}
+#modal-backdrop.open .modal-card{ transform: translateY(0) scale(1); }
+@media (max-width: 700px){ .modal-card{ grid-template-columns: 1fr; max-height: 92vh; } }
+
+.modal-card .poster-ph{ border-radius:0; min-height: 260px; }
+@media (min-width: 701px){ .modal-card .poster-ph{ height:100%; } }
+.modal-card .poster-ph .ph-glyph{ font-size:11%; }
+
+.modal-body{ padding: 30px 30px 34px; position:relative; }
+.modal-close{
+  position:absolute; top:18px; right:18px;
+  width:34px; height:34px; border-radius:50%;
+  background: var(--surface-2); border:1px solid var(--surface-border);
+  display:flex; align-items:center; justify-content:center;
+  color: var(--text-dim);
+}
+.modal-close:hover{ color: var(--accent); border-color: var(--accent); }
+
+.modal-body .badges-row{ display:flex; gap:8px; align-items:center; margin-bottom:14px; }
+.modal-body h2{ font-family: var(--font-display); font-size: 32px; letter-spacing:.01em; margin-bottom:4px; padding-right: 40px;}
+.modal-body .meta-line{ color: var(--text-faint); font-size: 13px; font-family: var(--font-mono); margin-bottom: 18px; }
+
+.modal-body .teaser-block{ font-size: 14.5px; line-height:1.65; color: var(--text-dim); margin-bottom: 20px; }
+
+.why-match{
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 22px;
+  display:flex; gap:10px; align-items:flex-start;
+}
+.why-match svg{ flex-shrink:0; width:18px; height:18px; color: var(--accent); margin-top:2px;}
+.why-match p{ font-size: 13.5px; line-height:1.5; color: var(--text); }
+.why-match p strong{ color: var(--accent); }
+
+.modal-body .tag-row{ margin-bottom: 24px; }
+
+.platform-row-lg{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 26px; }
+.platform-row-lg a{
+  display:flex; align-items:center; gap:8px;
+  padding: 10px 16px; border-radius: var(--radius-sm); font-size:13px; font-weight:700;
+}
+
+.modal-actions{ display:flex; gap:12px; flex-wrap:wrap; }
+.icon-btn{
+  width:46px; height:46px; border-radius:50%;
+  background: var(--surface-2); border:1px solid var(--surface-border);
+  display:flex; align-items:center; justify-content:center;
+}
+.icon-btn:hover{ border-color: var(--accent); color: var(--accent); }
+.icon-btn svg{ width:19px; height:19px; }
+
+/* =========================================================
+   5. WATCHLIST SCREEN
+   ========================================================= */
+.watchlist-row{
+  display:flex; align-items:center; gap:16px;
+  background: var(--surface); border:1px solid var(--surface-border); border-radius: var(--radius);
+  padding: 12px 16px; margin-bottom: 12px;
+  transition: border-color .18s var(--ease);
+}
+.watchlist-row:hover{ border-color: var(--surface-border); }
+.watchlist-row .poster-ph{ width:56px; height:80px; border-radius: 8px; flex-shrink:0; }
+.watchlist-row .poster-ph .ph-glyph{ font-size: 26%; }
+.watchlist-row .wl-info{ flex:1; min-width:0; cursor:pointer; }
+.watchlist-row .wl-info h4{ font-size: 15px; font-weight:700; margin-bottom:3px; }
+.watchlist-row .wl-info .wl-meta{ font-size:12px; color: var(--text-faint); display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.watchlist-row .wl-actions{ display:flex; gap:8px; align-items:center; flex-shrink:0; }
+
+/* =========================================================
+   6. PROFILE SCREEN
+   ========================================================= */
+.profile-head{ display:flex; align-items:center; gap:18px; margin-bottom: 34px; }
+.profile-avatar{
+  width:74px; height:74px; border-radius:50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display:flex; align-items:center; justify-content:center;
+  font-family: var(--font-display); font-size: 30px; color:#1c1206;
+}
+.profile-head h1{ font-family: var(--font-display); font-size:28px; }
+.profile-head p{ color: var(--text-faint); font-size:13px; margin-top:2px; }
+
+.stat-grid{ display:grid; grid-template-columns: repeat(3,1fr); gap:14px; margin-bottom: 34px; }
+.stat-box{ background: var(--surface); border:1px solid var(--surface-border); border-radius: var(--radius); padding: 18px; text-align:center; }
+.stat-box .num{ font-family: var(--font-display); font-size: 30px; color: var(--accent); }
+.stat-box .lbl{ font-size:11.5px; color: var(--text-faint); text-transform:uppercase; letter-spacing:.08em; margin-top:2px;}
+
+.pref-list{ background: var(--surface); border:1px solid var(--surface-border); border-radius: var(--radius); overflow:hidden; }
+.pref-row{ display:flex; align-items:center; justify-content:space-between; padding: 15px 18px; border-bottom:1px solid var(--surface-border); font-size:14px; }
+.pref-row:last-child{ border-bottom:none; }
+.pref-row span.lbl{ color: var(--text-dim); }
+.pref-row .val{ color: var(--text-faint); font-size:13px; }
+
+/* toast */
+#toast{
+  position: fixed; bottom: 26px; left:50%; transform: translateX(-50%) translateY(20px);
+  background: var(--surface-2); border:1px solid var(--accent);
+  color: var(--text); padding: 12px 22px; border-radius: 999px; font-size:13.5px; font-weight:600;
+  z-index: 200; opacity:0; pointer-events:none; transition: all .25s var(--ease);
+  display:flex; align-items:center; gap:8px;
+}
+#toast.show{ opacity:1; transform: translateX(-50%) translateY(0); }
+#toast svg{ width:16px; height:16px; color: var(--accent); }
+@media (max-width: 760px){ #toast{ bottom: 90px; } }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- =========================================================
+       1. AUTH / LANDING SCREEN
+       ========================================================= -->
+  <section id="screen-auth">
+    <div id="auth-visual">
+      <div class="poster-stack" id="poster-stack"></div>
+      <div>
+        <div class="brand">Mood<span>Reel</span></div>
+        <div class="tag">A recommendation engine that starts with how you feel, not a genre dropdown.</div>
+      </div>
+      <div class="quote">Tell it your mood.<br>It finds the <em>film</em>.</div>
+    </div>
+
+    <div id="auth-panel">
+      <div class="auth-card">
+        <div class="brand-mobile">Mood<span style="color:var(--accent)">Reel</span></div>
+
+        <div id="auth-login-form">
+          <h1>Welcome back</h1>
+          <p class="sub">Log in to pick up your watchlist and picks.</p>
+          <div class="field"><label>Email</label><input type="email" placeholder="you@example.com" value="pariii@example.com"></div>
+          <div class="field"><label>Password</label><input type="password" placeholder="••••••••" value="••••••••"></div>
+          <div class="auth-actions">
+            <button class="btn btn-primary btn-block" onclick="login()">Log in</button>
+          </div>
+          <div class="auth-divider">or</div>
+          <button class="btn btn-ghost btn-block" onclick="login()">Continue with Google</button>
+          <p class="auth-switch">New here? <button onclick="toggleAuthMode('signup')">Create an account</button></p>
+          <p class="auth-guest">Just looking? <a onclick="login()">Continue as guest</a></p>
+        </div>
+
+        <div id="auth-signup-form" class="hidden">
+          <h1>Create account</h1>
+          <p class="sub">Takes a minute. No credit card, no plot spoilers.</p>
+          <div class="field"><label>Name</label><input type="text" placeholder="Your name"></div>
+          <div class="field"><label>Email</label><input type="email" placeholder="you@example.com"></div>
+          <div class="field"><label>Password</label><input type="password" placeholder="Create a password"></div>
+          <div class="auth-actions">
+            <button class="btn btn-primary btn-block" onclick="login()">Sign up</button>
+          </div>
+          <p class="auth-switch">Already have an account? <button onclick="toggleAuthMode('login')">Log in</button></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       APP SHELL
+       ========================================================= -->
+  <div id="app-shell" class="hidden">
+
+    <header id="topnav">
+      <div class="brand">Mood<span>Reel</span><span class="dot"></span></div>
+      <nav id="nav-links">
+        <button data-screen="home" class="active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+          Home
+        </button>
+        <button data-screen="mood">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          Mood Search
+        </button>
+        <button data-screen="watchlist">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-4-7 4V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+          Watchlist
+        </button>
+        <button data-screen="profile">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+          Profile
+        </button>
+      </nav>
+      <div class="user-chip">
+        <div class="avatar">P</div>
+      </div>
+    </header>
+
+    <!-- ===================== HOME ===================== -->
+    <main class="screen" id="screen-home">
+      <div class="home-hero">
+        <span class="eyebrow">Good evening</span>
+        <h1>What's tonight's <em>mood</em>?</h1>
+        <p>Skip the genre filters. Describe how you want to feel, and MoodReel finds films that actually fit — not just films that match a tag.</p>
+        <div class="cta-row">
+          <button class="btn btn-primary" onclick="goTo('mood')">Find something to watch</button>
+          <button class="btn btn-ghost" onclick="goTo('watchlist')">View watchlist</button>
+        </div>
+        <div class="mood-chip-row" id="home-mood-chips"></div>
+      </div>
+
+      <div class="section-head">
+        <h2>Your watchlist</h2>
+        <a class="see-all" onclick="goTo('watchlist')">See all →</a>
+      </div>
+      <div id="home-watchlist-strip" class="watchlist-strip"></div>
+    </main>
+
+    <!-- ===================== MOOD SEARCH ===================== -->
+    <main class="screen hidden" id="screen-mood">
+      <div class="mood-wrap">
+        <span class="eyebrow">Mood search</span>
+        <h1>Describe the watch you're after</h1>
+        <p class="lead">Write it like you'd text a friend. Vibe, era, energy level — all fair game.</p>
+
+        <div class="mood-box-wrap">
+          <textarea id="mood-input" placeholder="e.g. sad, want to cry, something 2000s, low-medium rated, comforting not heavy"></textarea>
+          <span class="char-hint" id="mood-char-count">0 / 300</span>
+        </div>
+
+        <div class="filters-block">
+          <div class="filters-label">Year range</div>
+          <div class="filter-group" id="year-chips" data-multi="false">
+            <button class="chip" data-value="2000-2009">2000–2009</button>
+            <button class="chip" data-value="2010-2019">2010–2019</button>
+            <button class="chip" data-value="2020-2026">2020–2026</button>
+            <button class="chip" data-value="2000-2026">Any year</button>
+          </div>
+
+          <div class="filters-label">Rating range</div>
+          <div class="filter-group" id="rating-chips" data-multi="false">
+            <button class="chip rating-low" data-value="low">Low (≤5.9)</button>
+            <button class="chip rating-med" data-value="medium">Medium (6–7.4)</button>
+            <button class="chip rating-high" data-value="high">High (7.5+)</button>
+          </div>
+        </div>
+
+        <div class="mood-submit-row">
+          <button class="btn btn-primary" style="padding:15px 40px; font-size:15.5px;" onclick="submitMood()">
+            Find my movies
+          </button>
+        </div>
+
+        <div class="mood-examples">
+          <div class="filters-label">Or try one of these</div>
+          <button class="example-pill" onclick="useExample(this)">rainy day, cozy, nothing too intense</button>
+          <button class="example-pill" onclick="useExample(this)">just broke up, need a distraction, keep it light</button>
+          <button class="example-pill" onclick="useExample(this)">hyped up, want chaos and adrenaline</button>
+          <button class="example-pill" onclick="useExample(this)">lonely tonight, something warm and familiar</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- ===================== RESULTS ===================== -->
+    <main class="screen hidden" id="screen-results">
+      <div class="results-head">
+        <div>
+          <h1>Your picks</h1>
+          <p class="mood-echo">Matched to: <strong id="mood-echo-text">—</strong></p>
+        </div>
+        <button class="edit-search" onclick="goTo('mood')">Edit search</button>
+      </div>
+      <div class="grid" id="results-grid"></div>
+    </main>
+
+    <!-- ===================== WATCHLIST ===================== -->
+    <main class="screen hidden" id="screen-watchlist">
+      <div class="section-head" style="margin-top:0;">
+        <h2>Watchlist</h2>
+      </div>
+      <div id="watchlist-list"></div>
+    </main>
+
+    <!-- ===================== PROFILE ===================== -->
+    <main class="screen hidden" id="screen-profile">
+      <div class="profile-head">
+        <div class="profile-avatar">P</div>
+        <div>
+          <h1>Pariii</h1>
+          <p>pariii@example.com</p>
+        </div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-box"><div class="num" id="stat-watchlist">0</div><div class="lbl">Watchlist</div></div>
+        <div class="stat-box"><div class="num" id="stat-watched">0</div><div class="lbl">Watched</div></div>
+        <div class="stat-box"><div class="num" id="stat-searches">0</div><div class="lbl">Mood searches</div></div>
+      </div>
+
+      <div class="pref-list">
+        <div class="pref-row"><span class="lbl">Preferred year range</span><span class="val">2000–2026</span></div>
+        <div class="pref-row"><span class="lbl">Preferred rating</span><span class="val">Medium–High</span></div>
+        <div class="pref-row"><span class="lbl">Streaming platforms</span><span class="val">Netflix, Prime Video</span></div>
+        <div class="pref-row"><span class="lbl">Log out</span><span class="val"><button style="color:var(--accent-2); font-weight:700;" onclick="logout()">Log out →</button></span></div>
+      </div>
+    </main>
+
+  </div>
+
+  <nav id="bottomnav">
+    <button data-screen="home" class="active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      Home
+    </button>
+    <button data-screen="mood">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      Mood
+    </button>
+    <button data-screen="watchlist">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-4-7 4V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+      Watchlist
+    </button>
+    <button data-screen="profile">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+      Profile
+    </button>
+  </nav>
+
+</div>
+
+<!-- ===================== DETAIL MODAL ===================== -->
+<div id="modal-backdrop" onclick="if(event.target===this) closeModal()">
+  <div class="modal-card" id="modal-card"></div>
+</div>
+
+<div id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+  <span id="toast-text">Saved</span>
+</div>
+
+<script>
+/* =========================================================
+   PLACEHOLDER DATA
+   Replace getRecommendations() with a real API call to your
+   Django backend once the ML model is wired up. Every function
+   that will eventually hit the backend is marked with TODO.
+   ========================================================= */
+
+const POSTER_PALETTES = [
+  ['#3a2a1f','#7a4a2a'], ['#241a33','#5c3a8f'], ['#1f2f2a','#2f7d5c'],
+  ['#331a1a','#8f3a3a'], ['#1a2733','#2a6b8f'], ['#2f2417','#a3712f'],
+];
+
+const MOVIES = [
+  {
+    id: 1, title: "Amelie", year: 2001, rating: 8.3, match: "best",
+    teaser: "A whimsical, warm-hearted wander through small kindnesses and quiet magic.",
+    genres: ["Comedy", "Romance"], platforms: ["netflix","prime"],
+    why: "Matches your 'comforting, not heavy' cue — gentle pacing, no emotional gut-punches."
+  },
+  {
+    id: 2, title: "Lost in Translation", year: 2003, rating: 7.7, match: "best",
+    teaser: "Two strangers drifting through jet-lagged nights and unspoken understanding.",
+    genres: ["Drama", "Comedy"], platforms: ["max","apple"],
+    why: "Fits the 2000s + low-key melancholy tone you asked for, without heavy plot weight."
+  },
+  {
+    id: 3, title: "The Secret Life of Walter Mitty", year: 2013, rating: 7.3, match: "good",
+    teaser: "A daydreamer's ordinary life quietly cracks open into something bigger.",
+    genres: ["Adventure", "Comedy"], platforms: ["hotstar","prime"],
+    why: "Comforting and visually soft, though the era is a decade later than requested."
+  },
+  {
+    id: 4, title: "Eternal Sunshine of the Spotless Mind", year: 2004, rating: 8.3, match: "good",
+    teaser: "Memory and heartbreak tangle together in a strange, tender puzzle.",
+    genres: ["Romance", "Sci-Fi"], platforms: ["netflix"],
+    why: "Right decade and emotionally resonant, but leans a little heavier than 'not heavy.'"
+  },
+  {
+    id: 5, title: "Crazy Rich Asians", year: 2018, rating: 6.9, match: "good",
+    teaser: "Glossy family drama wrapped around a fairy-tale romance.",
+    genres: ["Romance", "Comedy"], platforms: ["max","prime"],
+    why: "Comfort-watch energy and mid rating match, though outside the requested decade."
+  },
+  {
+    id: 6, title: "Marley & Me", year: 2008, rating: 7.0, match: "worst",
+    teaser: "A family's years with an untrainable dog, told with a lot of heart.",
+    genres: ["Drama", "Family"], platforms: ["hotstar","apple"],
+    why: "2000s and mid-rated as requested, but its emotional ending runs heavier than asked for."
+  },
+];
+
+/* =========================================================
+   STATE
+   ========================================================= */
+const state = {
+  authMode: 'login',
+  currentScreen: 'home',
+  moodText: '',
+  yearFilter: null,
+  ratingFilter: null,
+  watchlist: [],   // array of movie ids
+  watched: [],     // array of movie ids
+  searchCount: 0,
+  lastResults: [],
+};
+
+/* =========================================================
+   AUTH
+   ========================================================= */
+function toggleAuthMode(mode){
+  state.authMode = mode;
+  document.getElementById('auth-login-form').classList.toggle('hidden', mode !== 'login');
+  document.getElementById('auth-signup-form').classList.toggle('hidden', mode !== 'signup');
+}
+
+function login(){
+  // TODO: replace with real auth call to Django, e.g.
+  // fetch('/api/auth/login/', { method:'POST', body: JSON.stringify({email, password}) })
+  document.getElementById('screen-auth').classList.add('hidden');
+  document.getElementById('app-shell').classList.remove('hidden');
+  goTo('home');
+}
+
+function logout(){
+  document.getElementById('app-shell').classList.add('hidden');
+  document.getElementById('screen-auth').classList.remove('hidden');
+}
+
+/* =========================================================
+   NAV / SCREEN ROUTING
+   ========================================================= */
+function goTo(screenName){
+  state.currentScreen = screenName;
+  document.querySelectorAll('main.screen').forEach(el => el.classList.add('hidden'));
+  document.getElementById('screen-' + screenName).classList.remove('hidden');
+
+  document.querySelectorAll('#nav-links button, #bottomnav button').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.screen === screenName);
+  });
+
+  if(screenName === 'home') renderHome();
+  if(screenName === 'watchlist') renderWatchlist();
+  if(screenName === 'profile') renderProfile();
+
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+document.querySelectorAll('#nav-links button, #bottomnav button').forEach(btn=>{
+  btn.addEventListener('click', ()=> goTo(btn.dataset.screen));
+});
+
+/* =========================================================
+   POSTER PLACEHOLDER RENDERER
+   ========================================================= */
+function posterHTML(movie){
+  const palette = POSTER_PALETTES[movie.id % POSTER_PALETTES.length];
+  return `
+    <div class="poster-ph" style="background:linear-gradient(150deg, ${palette[0]}, ${palette[1]});">
+      <span class="ph-glyph">${movie.title}</span>
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8">
+        <rect x="2" y="6" width="20" height="14" rx="2"/><path d="M7 6l3-4h4l3 4M2 10h20"/>
+      </svg>
+    </div>`;
+}
+
+/* =========================================================
+   HOME SCREEN
+   ========================================================= */
+const HOME_MOOD_SUGGESTIONS = [
+  "cozy & nostalgic", "need a good cry", "brainless fun", "first-date energy", "rainy afternoon"
+];
+
+function renderHome(){
+  const chipWrap = document.getElementById('home-mood-chips');
+  chipWrap.innerHTML = HOME_MOOD_SUGGESTIONS.map(m =>
+    `<button class="mood-chip" onclick="quickMood('${m}')">${m}</button>`
+  ).join('');
+
+  const strip = document.getElementById('home-watchlist-strip');
+  if(state.watchlist.length === 0){
+    strip.innerHTML = `<div class="empty-state" style="width:100%;">Nothing saved yet — run a mood search and add a few films.</div>`;
+    return;
+  }
+  strip.innerHTML = state.watchlist.map(id=>{
+    const m = MOVIES.find(x=>x.id===id);
+    return `
+      <div class="mini-card" onclick="openModal(${m.id})">
+        ${posterHTML(m)}
+        <div class="mini-info"><h4>${m.title}</h4><span>${m.year}</span></div>
+      </div>`;
+  }).join('');
+}
+
+function quickMood(text){
+  document.getElementById('mood-input').value = text;
+  goTo('mood');
+  updateCharCount();
+}
+
+/* =========================================================
+   MOOD SEARCH SCREEN
+   ========================================================= */
+const moodInputEl = document.getElementById('mood-input');
+moodInputEl.addEventListener('input', updateCharCount);
+function updateCharCount(){
+  const len = moodInputEl.value.length;
+  document.getElementById('mood-char-count').textContent = `${len} / 300`;
+}
+
+document.querySelectorAll('#year-chips .chip').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    const already = chip.classList.contains('on');
+    document.querySelectorAll('#year-chips .chip').forEach(c=>c.classList.remove('on'));
+    if(!already){ chip.classList.add('on'); state.yearFilter = chip.dataset.value; }
+    else state.yearFilter = null;
+  });
+});
+document.querySelectorAll('#rating-chips .chip').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    const already = chip.classList.contains('on');
+    document.querySelectorAll('#rating-chips .chip').forEach(c=>c.classList.remove('on'));
+    if(!already){ chip.classList.add('on'); state.ratingFilter = chip.dataset.value; }
+    else state.ratingFilter = null;
+  });
+});
+
+function useExample(el){
+  moodInputEl.value = el.textContent;
+  updateCharCount();
+  moodInputEl.focus();
+}
+
+function submitMood(){
+  const text = moodInputEl.value.trim();
+  if(!text){
+    moodInputEl.focus();
+    moodInputEl.style.borderColor = 'var(--worst)';
+    setTimeout(()=> moodInputEl.style.borderColor = '', 900);
+    return;
+  }
+  state.moodText = text;
+  state.searchCount++;
+
+  const results = getRecommendations(text, { year: state.yearFilter, rating: state.ratingFilter });
+  state.lastResults = results;
+  renderResults();
+  goTo('results');
+}
+
+/**
+ * TODO: replace this with a real call to your Django + ML backend, e.g.
+ *
+ * async function getRecommendations(moodText, filters){
+ *   const res = await fetch('/api/recommendations/', {
+ *     method: 'POST',
+ *     headers: {'Content-Type':'application/json'},
+ *     body: JSON.stringify({ mood: moodText, year: filters.year, rating: filters.rating })
+ *   });
+ *   return await res.json(); // expected: array of movie objects shaped like MOVIES above
+ * }
+ *
+ * For now it just returns the placeholder catalog untouched.
+ */
+function getRecommendations(moodText, filters){
+  return MOVIES;
+}
+
+/* =========================================================
+   RESULTS SCREEN
+   ========================================================= */
+function renderResults(){
+  document.getElementById('mood-echo-text').textContent = state.moodText;
+  const grid = document.getElementById('results-grid');
+
+  if(state.lastResults.length === 0){
+    grid.innerHTML = `<div class="results-empty"><h3>No matches yet</h3><p>Try loosening a filter or rephrasing your mood.</p></div>`;
+    return;
+  }
+
+  grid.innerHTML = state.lastResults.map(m => `
+    <div class="movie-card" onclick="openModal(${m.id})">
+      <div style="position:relative;">
+        <span class="match-badge ${m.match}">${m.match}</span>
+        <span class="imdb-badge">★ ${m.rating}</span>
+        ${posterHTML(m)}
+      </div>
+      <div class="card-body">
+        <div class="title-row"><h3>${m.title}</h3><span class="year">${m.year}</span></div>
+        <p class="teaser">${m.teaser}</p>
+        <div class="tag-row">${m.genres.map(g=>`<span class="tag">${g}</span>`).join('')}</div>
+        <div class="platform-row">${platformBadges(m.platforms)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+const PLATFORM_META = {
+  netflix: {label:'Netflix', cls:'pf-netflix'},
+  prime:   {label:'Prime',   cls:'pf-prime'},
+  hotstar: {label:'Hotstar', cls:'pf-hotstar'},
+  max:     {label:'Max',     cls:'pf-max'},
+  apple:   {label:'Apple TV',cls:'pf-apple'},
+};
+function platformBadges(list){
+  return list.map(p => `<span class="platform-badge ${PLATFORM_META[p].cls}">${PLATFORM_META[p].label}</span>`).join('');
+}
+
+/* =========================================================
+   DETAIL MODAL
+   ========================================================= */
+function openModal(id){
+  const m = MOVIES.find(x=>x.id===id);
+  const inWatchlist = state.watchlist.includes(id);
+  const card = document.getElementById('modal-card');
+
+  card.innerHTML = `
+    ${posterHTML(m)}
+    <div class="modal-body">
+      <button class="modal-close" onclick="closeModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+      <div class="badges-row">
+        <span class="match-badge ${m.match}" style="position:static;">${m.match} match</span>
+        <span class="imdb-badge" style="position:static;">★ ${m.rating} IMDb</span>
+      </div>
+      <h2>${m.title}</h2>
+      <div class="meta-line">${m.year} · ${m.genres.join(', ')}</div>
+      <p class="teaser-block">${m.teaser}</p>
+
+      <div class="why-match">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.3 6.9.9-5 4.8 1.3 6.8L12 17.6l-6.1 3.2 1.3-6.8-5-4.8 6.9-.9z"/></svg>
+        <p><strong>Why this matches you:</strong> ${m.why}</p>
+      </div>
+
+      <div class="tag-row">${m.genres.map(g=>`<span class="tag">${g}</span>`).join('')}</div>
+
+      <div class="platform-row-lg">
+        ${m.platforms.map(p=>`<a class="platform-badge ${PLATFORM_META[p].cls}" href="#" onclick="return false;">▶ Watch on ${PLATFORM_META[p].label}</a>`).join('')}
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="watchlist-btn" onclick="toggleWatchlist(${m.id})">
+          ${inWatchlist ? '✓ In watchlist' : '+ Add to Watchlist'}
+        </button>
+        <button class="icon-btn" title="Share" onclick="shareMovie(${m.id})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+        </button>
+      </div>
+    </div>
+  `;
+  document.getElementById('modal-backdrop').classList.add('open');
+}
+
+function closeModal(){
+  document.getElementById('modal-backdrop').classList.remove('open');
+}
+
+/* =========================================================
+   WATCHLIST LOGIC
+   ========================================================= */
+function toggleWatchlist(id){
+  const idx = state.watchlist.indexOf(id);
+  if(idx === -1){
+    state.watchlist.push(id);
+    showToast('Added to watchlist');
+  } else {
+    state.watchlist.splice(idx,1);
+    showToast('Removed from watchlist');
+  }
+  // refresh whatever is currently open/visible
+  if(!document.getElementById('modal-backdrop').classList.contains('open')) return;
+  openModal(id);
+}
+
+function markWatched(id){
+  state.watchlist = state.watchlist.filter(x=>x!==id);
+  if(!state.watched.includes(id)) state.watched.push(id);
+  showToast('Marked as watched');
+  renderWatchlist();
+}
+
+function renderWatchlist(){
+  const list = document.getElementById('watchlist-list');
+  if(state.watchlist.length === 0){
+    list.innerHTML = `<div class="empty-state">Your watchlist is empty. Head to Mood Search and save a few picks.</div>`;
+    return;
+  }
+  list.innerHTML = state.watchlist.map(id=>{
+    const m = MOVIES.find(x=>x.id===id);
+    return `
+      <div class="watchlist-row">
+        ${posterHTML(m)}
+        <div class="wl-info" onclick="openModal(${m.id})">
+          <h4>${m.title}</h4>
+          <div class="wl-meta">
+            <span>${m.year}</span>
+            <span>★ ${m.rating}</span>
+            <span class="match-badge ${m.match}" style="position:static; padding:3px 9px; font-size:10px;">${m.match}</span>
+          </div>
+        </div>
+        <div class="wl-actions">
+          <button class="btn btn-ghost btn-sm" onclick="markWatched(${m.id})">Mark as Watched</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/* =========================================================
+   SHARE
+   ========================================================= */
+function shareMovie(id){
+  const m = MOVIES.find(x=>x.id===id);
+  const shareData = {
+    title: `${m.title} (${m.year}) — MoodReel`,
+    text: `${m.title} matched my mood on MoodReel. ${m.teaser}`,
+    url: window.location.href
+  };
+  // TODO: swap window.location.href for the real per-movie deep link once routing exists
+  if(navigator.share){
+    navigator.share(shareData).catch(()=>{});
+  } else {
+    navigator.clipboard?.writeText(`${shareData.title} — ${shareData.url}`);
+    showToast('Link copied to clipboard');
+  }
+}
+
+/* =========================================================
+   PROFILE
+   ========================================================= */
+function renderProfile(){
+  document.getElementById('stat-watchlist').textContent = state.watchlist.length;
+  document.getElementById('stat-watched').textContent = state.watched.length;
+  document.getElementById('stat-searches').textContent = state.searchCount;
+}
+
+/* =========================================================
+   TOAST
+   ========================================================= */
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  document.getElementById('toast-text').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
+}
+
+/* =========================================================
+   AUTH VISUAL POSTER STACK (decorative)
+   ========================================================= */
+(function buildPosterStack(){
+  const wrap = document.getElementById('poster-stack');
+  if(!wrap) return;
+  let html = '';
+  for(let i=0;i<16;i++){
+    const p = POSTER_PALETTES[i % POSTER_PALETTES.length];
+    html += `<div style="background:linear-gradient(150deg, ${p[0]}, ${p[1]});"></div>`;
+  }
+  wrap.innerHTML = html;
+})();
+
+/* Escape key closes modal */
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape') closeModal();
+});
+</script>
+</body>
+</html>
